@@ -22,11 +22,10 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install requests
+    - name: Install dependencies
       run: pip install requests
 
     - name: Smart Domain Check and Update
-      id: domain_check
       run: |
         # Mevcut domaini al veya varsayılanı kullan
         if [ -f "domain.txt" ]; then
@@ -47,42 +46,44 @@ jobs:
         import requests
         import os
         
-        # Gerçekçi bir User-Agent başlığı tanımla :cite[1]:cite[6]
+        # Gerçekçi bir User-Agent başlığı tanımla
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
         }
         
         def check_domain(domain):
             try:
-                # İsteği User-Agent başlığı ile gönder :cite[4]:cite[6]
-                response = requests.get(domain, timeout=5, allow_redirects=True, headers=headers)
+                # İsteği User-Agent başlığı ile gönder
+                response = requests.get(domain, timeout=10, allow_redirects=True, headers=headers)
+                print(f'Status Code for {domain}: {response.status_code}')
+                # Önemli: Sadece 200 status kodunu değil, isteğin başarılı olup olmadığını kontrol et
                 return response.status_code == 200
-            except:
+            except Exception as e:
+                print(f'Hata oluştu {domain}: {e}')
                 return False
         
         start_domain_number = $DOMAIN_NUMBER
         print(f'Başlangıç domain numarası: {start_domain_number}')
         
         # EN GÜNCEL çalışan domaini bulana kadar kontrol et
-        max_check = 10  # Maksimum 10 domain ilerisine bak
+        max_check = 15  # Maksimum kontrol sayısını 15'e çıkar
         latest_working_domain = None
-        latest_domain_number = start_domain_number
         
+        # Tüm domainleri kontrol etmek için for döngüsü
         for i in range(max_check):
             current_check_domain = f'https://trgoals{start_domain_number + i}.xyz/'
             is_active = check_domain(current_check_domain)
             print(f'Domain {start_domain_number + i} kontrol: {current_check_domain} - Aktif: {is_active}')
             
             if is_active:
+                # Çalışan bir domain bulduğumuzda, onu en son çalışan domain olarak kaydet
                 latest_working_domain = current_check_domain
-                latest_domain_number = start_domain_number + i
-                # Çalışan bulduk ama BİR ÜSTÜNÜ de kontrol edeceğiz
-            else:
-                # Çalışmayan domain, bir önceki çalışanı kullan
-                break
+                # Döngüyü kırmıyoruz, EN SON çalışanı bulana kadar devam ediyoruz.
         
-        # Şimdi EN SON çalışan domainin BİR ÜSTÜNÜ kontrol et
+        # Döngü bittikten sonra en son bulunan çalışan domaini kullan
         if latest_working_domain:
+            # En son çalışan domainin BİR ÜSTÜNÜ kontrol et
+            latest_domain_number = int(latest_working_domain.split('trgoals')[1].split('.xyz')[0])
             next_domain = f'https://trgoals{latest_domain_number + 1}.xyz/'
             next_active = check_domain(next_domain)
             print(f'En son çalışan domain: {latest_working_domain}')
