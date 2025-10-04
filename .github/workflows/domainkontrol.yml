@@ -56,7 +56,6 @@ jobs:
                 # İsteği User-Agent başlığı ile gönder
                 response = requests.get(domain, timeout=10, allow_redirects=True, headers=headers)
                 print(f'Status Code for {domain}: {response.status_code}')
-                # Önemli: Sadece 200 status kodunu değil, isteğin başarılı olup olmadığını kontrol et
                 return response.status_code == 200
             except Exception as e:
                 print(f'Hata oluştu {domain}: {e}')
@@ -78,25 +77,29 @@ jobs:
             if is_active:
                 # Çalışan bir domain bulduğumuzda, onu en son çalışan domain olarak kaydet
                 latest_working_domain = current_check_domain
-                # Döngüyü kırmıyoruz, EN SON çalışanı bulana kadar devam ediyoruz.
         
         # Döngü bittikten sonra en son bulunan çalışan domaini kullan
         if latest_working_domain:
-            # En son çalışan domainin BİR ÜSTÜNÜ kontrol et
+            # En son çalışan domainin BİRKAÇ ÜSTÜNÜ kontrol et (3 domain daha kontrol edeceğiz)
             latest_domain_number = int(latest_working_domain.split('trgoals')[1].split('.xyz')[0])
-            next_domain = f'https://trgoals{latest_domain_number + 1}.xyz/'
-            next_active = check_domain(next_domain)
-            print(f'En son çalışan domain: {latest_working_domain}')
-            print(f'Bir üst domain kontrol: {next_domain} - Aktif: {next_active}')
+            selected_domain = latest_working_domain
             
-            if next_active:
-                # Bir üst domain de çalışıyorsa, ONU kullan
-                selected_domain = next_domain
-                print(f'Bir üst domain aktif, kullanılacak: {selected_domain}')
-            else:
-                # Bir üst çalışmıyorsa, en son çalışanı kullan
-                selected_domain = latest_working_domain
-                print(f'Bir üst domain aktif değil, en son çalışan kullanılacak: {selected_domain}')
+            # 3 domain daha üstünü kontrol et
+            for extra in range(1, 4):
+                next_domain = f'https://trgoals{latest_domain_number + extra}.xyz/'
+                next_active = check_domain(next_domain)
+                print(f'{extra}. üst domain kontrol: {next_domain} - Aktif: {next_active}')
+                
+                if next_active:
+                    # Üst domain çalışıyorsa, onu seçilen domain yap
+                    selected_domain = next_domain
+                    print(f'{extra}. üst domain aktif, güncelleniyor: {selected_domain}')
+                else:
+                    # Çalışmayan domain bulduğumuzda daha fazla kontrol etmeye gerek yok
+                    print(f'{extra}. üst domain çalışmıyor, kontrolü durduruyorum')
+                    break
+            
+            print(f'Seçilen domain: {selected_domain}')
         else:
             # Hiç çalışan domain bulunamadı, varsayılanı kullan
             selected_domain = 'https://trgoals1423.xyz/'
