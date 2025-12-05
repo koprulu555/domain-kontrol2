@@ -1,0 +1,128 @@
+name: Domain Check and Update
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-update-domain:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install requests
+
+    - name: Smart Domain Check and Update
+      run: |
+        # Mevcut domaini al veya varsayılanı kullan
+        if [ -f "dizipaldomain.txt" ]; then
+          CURRENT_DOMAIN=$(grep -o 'guncel_domain=.*' dizipaldomain.txt | cut -d'=' -f2)
+          echo "Mevcut domain: $CURRENT_DOMAIN"
+        else
+          CURRENT_DOMAIN="https://dizipal1219.com/"
+          echo "Yeni dizipaldomain.txt oluşturuluyor: $CURRENT_DOMAIN"
+          echo "guncel_domain=$CURRENT_DOMAIN" > dizipaldomain.txt
+        fi
+
+        # Domain numarasını al
+        DOMAIN_NUMBER=$(echo $CURRENT_DOMAIN | grep -o '[0-9]\+')
+        echo "Başlangıç domain numarası: $DOMAIN_NUMBER"
+
+        # Akıllı domain kontrolü için Python scripti
+        python3 -c "
+        import requests
+        import os
+        
+        # Gerçekçi bir User-Agent başlığı tanımla
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        }
+        
+        def check_domain(domain):
+            try:
+                # İsteği User-Agent başlığı ile gönder
+                response = requests.get(domain, timeout=10, allow_redirects=True, headers=headers)
+                print(f'Status Code for {domain}: {response.status_code}')
+                return response.status_code == 200
+            except Exception as e:
+                print(f'Hata oluştu {domain}: {e}')
+                return False
+        
+        start_domain_number = $DOMAIN_NUMBER
+        print(f'Başlangıç domain numarası: {start_domain_number}')
+        
+        # EN GÜNCEL çalışan domaini bulana kadar kontrol et
+        max_check = 15  # Maksimum kontrol sayısını 15'e çıkar
+        latest_working_domain = None
+        
+        # Tüm domainleri kontrol etmek için for döngüsü
+        for i in range(max_check):
+            current_check_domain = f'https://dizipal{start_domain_number + i}.xyz/'
+            is_active = check_domain(current_check_domain)
+            print(f'Domain {start_domain_number + i} kontrol: {current_check_domain} - Aktif: {is_active}')
+            
+            if is_active:
+                # Çalışan bir domain bulduğumuzda, onu en son çalışan domain olarak kaydet
+                latest_working_domain = current_check_domain
+        
+        # Döngü bittikten sonra en son bulunan çalışan domaini kullan
+        if latest_working_domain:
+            # En son çalışan domainin BİRKAÇ ÜSTÜNÜ kontrol et (3 domain daha kontrol edeceğiz)
+            latest_domain_number = int(latest_working_domain.split('dizipal')[1].split('.xyz')[0])
+            selected_domain = latest_working_domain
+            
+            # 3 domain daha üstünü kontrol et
+            for extra in range(1, 4):
+                next_domain = f'https://dizipal{latest_domain_number + extra}.xyz/'
+                next_active = check_domain(next_domain)
+                print(f'{extra}. üst domain kontrol: {next_domain} - Aktif: {next_active}')
+                
+                if next_active:
+                    # Üst domain çalışıyorsa, onu seçilen domain yap
+                    selected_domain = next_domain
+                    print(f'{extra}. üst domain aktif, güncelleniyor: {selected_domain}')
+                else:
+                    # Çalışmayan domain bulduğumuzda daha fazla kontrol etmeye gerek yok
+                    print(f'{extra}. üst domain çalışmıyor, kontrolü durduruyorum')
+                    break
+            
+            print(f'Seçilen domain: {selected_domain}')
+        else:
+            # Hiç çalışan domain bulunamadı, varsayılanı kullan
+            selected_domain = 'https://dizipal1219.com/'
+            print(f'Hiç çalışan domain bulunamadı, varsayılan kullanılacak: {selected_domain}')
+        
+        # dizipaldomain.txt'yi güncelle (her zaman)
+        with open('dizipaldomain.txt', 'w') as f:
+            f.write(f'guncel_domain={selected_domain}')
+        
+        print(f'Seçilen domain: {selected_domain}')
+        "
+
+    - name: Commit and push changes
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add dizipaldomain.txt
+        
+        # Değişiklik varsa commit et
+        if git diff --staged --quiet; then
+          echo "Değişiklik yok, commit atlanıyor"
+        else
+          git commit -m "Güncel domain: $(date '+%Y-%m-%d %H:%M:%S')"
+          git push
+          echo "Değişiklikler push edildi"
+        fi
