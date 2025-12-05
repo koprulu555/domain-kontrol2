@@ -65,7 +65,7 @@ jobs:
         print(f'Başlangıç domain numarası: {start_domain_number}')
         
         # EN GÜNCEL çalışan domaini bulana kadar kontrol et
-        max_check = 15  # Maksimum kontrol sayısını 15'e çıkar
+        max_check = 4  # Maksimum kontrol sayısını 4'e çıkar
         latest_working_domain = None
         
         # Tüm domainleri kontrol etmek için for döngüsü
