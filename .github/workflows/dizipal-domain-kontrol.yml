@@ -70,7 +70,7 @@ jobs:
         
         # Tüm domainleri kontrol etmek için for döngüsü
         for i in range(max_check):
-            current_check_domain = f'https://dizipal{start_domain_number + i}.xyz/'
+            current_check_domain = f'https://dizipal{start_domain_number + i}.com/'
             is_active = check_domain(current_check_domain)
             print(f'Domain {start_domain_number + i} kontrol: {current_check_domain} - Aktif: {is_active}')
             
@@ -81,12 +81,12 @@ jobs:
         # Döngü bittikten sonra en son bulunan çalışan domaini kullan
         if latest_working_domain:
             # En son çalışan domainin BİRKAÇ ÜSTÜNÜ kontrol et (3 domain daha kontrol edeceğiz)
-            latest_domain_number = int(latest_working_domain.split('dizipal')[1].split('.xyz')[0])
+            latest_domain_number = int(latest_working_domain.split('dizipal')[1].split('.com')[0])
             selected_domain = latest_working_domain
             
             # 3 domain daha üstünü kontrol et
             for extra in range(1, 4):
-                next_domain = f'https://dizipal{latest_domain_number + extra}.xyz/'
+                next_domain = f'https://dizipal{latest_domain_number + extra}.com/'
                 next_active = check_domain(next_domain)
                 print(f'{extra}. üst domain kontrol: {next_domain} - Aktif: {next_active}')
                 
