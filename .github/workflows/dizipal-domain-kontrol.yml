@@ -84,7 +84,7 @@ jobs:
             latest_domain_number = int(latest_working_domain.split('dizipal')[1].split('.com')[0])
             selected_domain = latest_working_domain
             
-            # 3 domain daha üstünü kontrol et
+            # 1 domain daha üstünü kontrol et
             for extra in range(1, 2):
                 next_domain = f'https://dizipal{latest_domain_number + extra}.com/'
                 next_active = check_domain(next_domain)
