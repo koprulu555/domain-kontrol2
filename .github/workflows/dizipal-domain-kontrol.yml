@@ -85,7 +85,7 @@ jobs:
             selected_domain = latest_working_domain
             
             # 1 domain daha üstünü kontrol et
-            for extra in range(1, 2):
+            for extra in range(1, 1):
                 next_domain = f'https://dizipal{latest_domain_number + extra}.com/'
                 next_active = check_domain(next_domain)
                 print(f'{extra}. üst domain kontrol: {next_domain} - Aktif: {next_active}')
