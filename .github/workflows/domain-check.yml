@@ -1,0 +1,164 @@
+name: Domain and Base URL Check and Update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  check-domain:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install requests
+      run: pip install requests
+
+    - name: Check and update domain
+      run: |
+        # Mevcut domain dosyasını kontrol et
+        if [ -f "domain.txt" ]; then
+          DOMAIN=$(grep "guncel_domain=" domain.txt | cut -d'=' -f2)
+          echo "Mevcut domain: $DOMAIN"
+          NUM=$(echo $DOMAIN | grep -o '[0-9]\+')
+        else
+          DOMAIN="https://trgoals1423.xyz/"
+          NUM="1423"
+          echo "guncel_domain=$DOMAIN" > domain.txt
+        fi
+        
+        echo "Aranacak başlangıç numarası: $NUM"
+        
+        # Python scripti
+        python3 << 'EOF'
+import requests
+import re
+import sys
+import os
+
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+}
+
+def find_domain(start_num):
+    for i in range(20):
+        test_num = int(start_num) + i
+        test_url = f"https://trgoals{test_num}.xyz/"
+        
+        try:
+            print(f"Test: {test_url}")
+            r = requests.get(test_url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                print(f"✅ Çalışan domain: {test_url}")
+                return test_url
+        except:
+            continue
+    
+    return None
+
+def check_channel_and_get_baseurl(domain):
+    channel_url = domain.rstrip('/') + '/channel.html'
+    print(f"\nChannel.html kontrol: {channel_url}")
+    
+    html = None
+    try:
+        r = requests.get(channel_url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            html = r.text
+            print("✅ Channel.html direkt erişildi")
+        else:
+            print(f"⚠ Direkt erişilemedi ({r.status_code}), proxy deneniyor...")
+            proxy_url = f"https://api.codetabs.com/v1/proxy/?quest={channel_url}"
+            r2 = requests.get(proxy_url, headers=headers, timeout=15)
+            if r2.status_code == 200:
+                html = r2.text
+                print("✅ Channel.html proxy ile erişildi")
+            else:
+                print(f"⚠ Proxy ile de erişilemedi ({r2.status_code})")
+    except Exception as e:
+        print(f"⚠ Hata: {e}")
+    
+    return html
+
+def extract_baseurl(html):
+    if not html:
+        return None
+    
+    patterns = [
+        r"CONFIG\s*=\s*{baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]",
+        r"const\s+CONFIG\s*=\s*{baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]",
+        r"baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]"
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, html)
+        if match:
+            baseurl = match.group(1)
+            print(f"✅ BaseURL bulundu: {baseurl}")
+            return baseurl
+    
+    print("❌ BaseURL bulunamadı")
+    return None
+
+def main():
+    if len(sys.argv) > 1:
+        start_num = sys.argv[1]
+    else:
+        start_num = '1423'
+    
+    # Domain bul
+    new_domain = find_domain(start_num)
+    
+    if new_domain:
+        # Domain.txt güncelle
+        with open('domain.txt', 'w') as f:
+            f.write(f'guncel_domain={new_domain}')
+        print(f"\n📝 domain.txt güncellendi")
+        
+        # Channel.html kontrol et ve baseurl ara
+        html = check_channel_and_get_baseurl(new_domain)
+        
+        if html:
+            baseurl = extract_baseurl(html)
+            if baseurl:
+                with open('guncel_baseurl.txt', 'w') as f:
+                    f.write(f'guncel_baseurl={baseurl}')
+                print(f"📝 guncel_baseurl.txt güncellendi")
+            else:
+                # BaseURL bulunamazsa dosyayı sil
+                if os.path.exists('guncel_baseurl.txt'):
+                    os.remove('guncel_baseurl.txt')
+                    print("🗑 guncel_baseurl.txt silindi")
+        else:
+            print("⚠ Channel.html içeriği alınamadı")
+            if os.path.exists('guncel_baseurl.txt'):
+                os.remove('guncel_baseurl.txt')
+    else:
+        print("\n❌ Hiçbir domain çalışmıyor!")
+
+if __name__ == "__main__":
+    main()
+EOF "$NUM"
+
+    - name: Değişiklikleri kaydet
+      run: |
+        git config --local user.email "github-actions@github.com"
+        git config --local user.name "GitHub Actions"
+        git add domain.txt guncel_baseurl.txt 2>/dev/null || true
+        
+        if ! git diff --cached --quiet; then
+          git commit -m "Domain ve base URL güncellendi [$(date +'%Y-%m-%d %H:%M')]"
+          git push
+          echo "✅ Değişiklikler kaydedildi"
+        else
+          echo "ℹ️ Değişiklik yok"
+        fi
