@@ -41,118 +41,128 @@ jobs:
         DOMAIN_NUMBER=$(echo $CURRENT_DOMAIN | grep -o '[0-9]\+')
         echo "Başlangıç domain numarası: $DOMAIN_NUMBER"
 
-        # Akıllı domain kontrolü için Python scripti
-        python3 -c "
-        import requests
-        import re
-        import os
+        # Python scriptini ayrı bir dosyaya yaz ve çalıştır
+        cat > check_domain.py << 'EOF'
+import requests
+import re
+import os
+import sys
+
+# Gerçekçi bir User-Agent başlığı tanımla
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+}
+
+def check_domain(domain):
+    try:
+        response = requests.get(domain, headers=headers, timeout=10, allow_redirects=True)
+        return response.status_code == 200
+    except:
+        return False
+
+def check_channel_html(domain):
+    '''Channel.html endpoint'ini kontrol et ve baseUrl'i çıkar'''
+    # Domain'deki son slash'ı temizle
+    if domain.endswith('/'):
+        domain = domain.rstrip('/')
+    
+    channel_url = f'{domain}/channel.html'
+    print(f'Channel.html kontrol ediliyor: {channel_url}')
+    
+    try:
+        # Direk erişim dene
+        response = requests.get(channel_url, headers=headers, timeout=10)
+        html_content = response.text
+    except:
+        # Direk erişim başarısız olursa proxy kullan
+        print('Direk erişim başarısız, proxy kullanılıyor...')
+        proxy_url = f'https://api.codetabs.com/v1/proxy/?quest={channel_url}'
+        try:
+            response = requests.get(proxy_url, headers=headers, timeout=15)
+            html_content = response.text
+        except Exception as e:
+            print(f'Proxy ile de erişim başarısız: {e}')
+            return None
+    
+    # Base URL'i regex ile çıkar
+    # Pattern 1: const CONFIG={baseUrl:'https://...' formatı
+    pattern1 = r"CONFIG\s*=\s*{[^}]*baseUrl\s*:\s*['\"](https?://[^'\"]+)['\"]"
+    # Pattern 2: Daha genel pattern
+    pattern2 = r"baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs[^'\"]*)['\"]"
+    
+    base_url = None
+    
+    # Önce pattern1'i dene
+    match1 = re.search(pattern1, html_content, re.IGNORECASE | re.DOTALL)
+    if match1:
+        base_url = match1.group(1)
+        print(f'Pattern1 ile baseUrl bulundu: {base_url}')
+    else:
+        # Pattern1 bulunamazsa pattern2'yi dene
+        match2 = re.search(pattern2, html_content, re.IGNORECASE)
+        if match2:
+            base_url = match2.group(1)
+            print(f'Pattern2 ile baseUrl bulundu: {base_url}')
+    
+    return base_url
+
+if __name__ == "__main__":
+    # Komut satırı argümanlarını al
+    current_domain = sys.argv[1] if len(sys.argv) > 1 else "https://trgoals1423.xyz/"
+    domain_number = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 0
+    
+    # Mevcut domaini kontrol et
+    if check_domain(current_domain):
+        print(f'Mevcut domain çalışıyor: {current_domain}')
         
-        # Gerçekçi bir User-Agent başlığı tanımla
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-        }
-        
-        def check_domain(domain):
-            try:
-                response = requests.get(domain, headers=headers, timeout=10, allow_redirects=True)
-                return response.status_code == 200
-            except:
-                return False
-        
-        def check_channel_html(domain):
-            '''Channel.html endpoint'ini kontrol et ve baseUrl'i çıkar'''
-            channel_url = f'{domain.rstrip("/")}/channel.html'
-            print(f'Channel.html kontrol ediliyor: {channel_url}')
-            
-            try:
-                # Direk erişim dene
-                response = requests.get(channel_url, headers=headers, timeout=10)
-                html_content = response.text
-            except:
-                # Direk erişim başarısız olursa proxy kullan
-                print('Direk erişim başarısız, proxy kullanılıyor...')
-                proxy_url = f'https://api.codetabs.com/v1/proxy/?quest={channel_url}'
-                try:
-                    response = requests.get(proxy_url, headers=headers, timeout=15)
-                    html_content = response.text
-                except Exception as e:
-                    print(f'Proxy ile de erişim başarısız: {e}')
-                    return None
-            
-            # Base URL'i regex ile çıkar
-            # Pattern 1: const CONFIG={baseUrl:'https://...' formatı
-            pattern1 = r"CONFIG\s*=\s*{[^}]*baseUrl\s*:\s*['\"](https?://[^'\"]+)['\"]"
-            # Pattern 2: Daha genel pattern
-            pattern2 = r"baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs[^'\"]*)['\"]"
-            
-            base_url = None
-            
-            # Önce pattern1'i dene
-            match1 = re.search(pattern1, html_content, re.IGNORECASE | re.DOTALL)
-            if match1:
-                base_url = match1.group(1)
-                print(f'Pattern1 ile baseUrl bulundu: {base_url}')
-            else:
-                # Pattern1 bulunamazsa pattern2'yi dene
-                match2 = re.search(pattern2, html_content, re.IGNORECASE)
-                if match2:
-                    base_url = match2.group(1)
-                    print(f'Pattern2 ile baseUrl bulundu: {base_url}')
-            
-            return base_url
-        
-        current_domain = '$CURRENT_DOMAIN'
-        domain_number = int('$DOMAIN_NUMBER') if '$DOMAIN_NUMBER' else 0
-        
-        # Mevcut domaini kontrol et
-        if check_domain(current_domain):
-            print(f'Mevcut domain çalışıyor: {current_domain}')
-            
-            # Channel.html kontrolü yap ve baseUrl'i çıkar
-            base_url = check_channel_html(current_domain)
-            if base_url:
-                # Base URL'i dosyaya yaz
-                with open('guncel_baseurl.txt', 'w') as f:
-                    f.write(f'guncel_baseurl={base_url}')
-                print(f'Base URL güncellendi: {base_url}')
-            else:
-                print('Base URL bulunamadı')
+        # Channel.html kontrolü yap ve baseUrl'i çıkar
+        base_url = check_channel_html(current_domain)
+        if base_url:
+            # Base URL'i dosyaya yaz
+            with open('guncel_baseurl.txt', 'w') as f:
+                f.write(f'guncel_baseurl={base_url}')
+            print(f'Base URL güncellendi: {base_url}')
         else:
-            print('Mevcut domain çalışmıyor, yeni domain aranıyor...')
+            print('Base URL bulunamadı')
+    else:
+        print('Mevcut domain çalışmıyor, yeni domain aranıyor...')
+        
+        found = False
+        max_attempts = 50  # Maksimum deneme sayısı
+        
+        for attempt in range(max_attempts):
+            # Domain numarasını artır
+            domain_number += 1
+            new_domain = f'https://trgoals{domain_number}.xyz/'
             
-            found = False
-            max_attempts = 50  # Maksimum deneme sayısı
+            print(f'Denenen domain {attempt + 1}/{max_attempts}: {new_domain}')
             
-            for attempt in range(max_attempts):
-                # Domain numarasını artır
-                domain_number += 1
-                new_domain = f'https://trgoals{domain_number}.xyz/'
+            if check_domain(new_domain):
+                print(f'Çalışan domain bulundu: {new_domain}')
                 
-                print(f'Denenen domain {attempt + 1}/{max_attempts}: {new_domain}')
+                # Yeni domaini dosyaya yaz
+                with open('domain.txt', 'w') as f:
+                    f.write(f'guncel_domain={new_domain}')
                 
-                if check_domain(new_domain):
-                    print(f'Çalışan domain bulundu: {new_domain}')
-                    
-                    # Yeni domaini dosyaya yaz
-                    with open('domain.txt', 'w') as f:
-                        f.write(f'guncel_domain={new_domain}')
-                    
-                    # Channel.html kontrolü yap ve baseUrl'i çıkar
-                    base_url = check_channel_html(new_domain)
-                    if base_url:
-                        # Base URL'i dosyaya yaz
-                        with open('guncel_baseurl.txt', 'w') as f:
-                            f.write(f'guncel_baseurl={base_url}')
-                        print(f'Base URL bulundu ve kaydedildi: {base_url}')
-                    else:
-                        print('Yeni domain için base URL bulunamadı')
-                    
-                    found = True
-                    break
-            
-            if not found:
-                print(f'{max_attempts} denemede çalışan domain bulunamadı')
-        "
+                # Channel.html kontrolü yap ve baseUrl'i çıkar
+                base_url = check_channel_html(new_domain)
+                if base_url:
+                    # Base URL'i dosyaya yaz
+                    with open('guncel_baseurl.txt', 'w') as f:
+                        f.write(f'guncel_baseurl={base_url}')
+                    print(f'Base URL bulundu ve kaydedildi: {base_url}')
+                else:
+                    print('Yeni domain için base URL bulunamadı')
+                
+                found = True
+                break
+        
+        if not found:
+            print(f'{max_attempts} denemede çalışan domain bulunamadı')
+EOF
+
+        # Python scriptini çalıştır
+        python3 check_domain.py "$CURRENT_DOMAIN" "$DOMAIN_NUMBER"
 
     - name: Commit and push if changes
       run: |
