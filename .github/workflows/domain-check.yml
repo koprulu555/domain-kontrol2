@@ -1,8 +1,22 @@
 name: Domain Check and Update
+
 on:
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'info'
+        type: choice
+        options:
+        - info
+        - debug
+      tags:
+        description: 'Test scenario tags'
+        required: false
+        type: boolean
 
 permissions:
   contents: write
@@ -41,8 +55,8 @@ jobs:
         DOMAIN_NUMBER=$(echo $CURRENT_DOMAIN | grep -o '[0-9]\+')
         echo "Başlangıç domain numarası: $DOMAIN_NUMBER"
 
-        # Python scriptini ayrı bir dosyaya yaz ve çalıştır
-        cat > check_domain.py << 'EOF'
+        # Akıllı domain kontrolü için Python scripti
+        python3 << 'PYSCRIPT'
 import requests
 import re
 import os
@@ -106,63 +120,61 @@ def check_channel_html(domain):
     
     return base_url
 
-if __name__ == "__main__":
-    # Komut satırı argümanlarını al
-    current_domain = sys.argv[1] if len(sys.argv) > 1 else "https://trgoals1423.xyz/"
-    domain_number = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] else 0
-    
-    # Mevcut domaini kontrol et
-    if check_domain(current_domain):
-        print(f'Mevcut domain çalışıyor: {current_domain}')
-        
-        # Channel.html kontrolü yap ve baseUrl'i çıkar
-        base_url = check_channel_html(current_domain)
-        if base_url:
-            # Base URL'i dosyaya yaz
-            with open('guncel_baseurl.txt', 'w') as f:
-                f.write(f'guncel_baseurl={base_url}')
-            print(f'Base URL güncellendi: {base_url}')
-        else:
-            print('Base URL bulunamadı')
-    else:
-        print('Mevcut domain çalışmıyor, yeni domain aranıyor...')
-        
-        found = False
-        max_attempts = 50  # Maksimum deneme sayısı
-        
-        for attempt in range(max_attempts):
-            # Domain numarasını artır
-            domain_number += 1
-            new_domain = f'https://trgoals{domain_number}.xyz/'
-            
-            print(f'Denenen domain {attempt + 1}/{max_attempts}: {new_domain}')
-            
-            if check_domain(new_domain):
-                print(f'Çalışan domain bulundu: {new_domain}')
-                
-                # Yeni domaini dosyaya yaz
-                with open('domain.txt', 'w') as f:
-                    f.write(f'guncel_domain={new_domain}')
-                
-                # Channel.html kontrolü yap ve baseUrl'i çıkar
-                base_url = check_channel_html(new_domain)
-                if base_url:
-                    # Base URL'i dosyaya yaz
-                    with open('guncel_baseurl.txt', 'w') as f:
-                        f.write(f'guncel_baseurl={base_url}')
-                    print(f'Base URL bulundu ve kaydedildi: {base_url}')
-                else:
-                    print('Yeni domain için base URL bulunamadı')
-                
-                found = True
-                break
-        
-        if not found:
-            print(f'{max_attempts} denemede çalışan domain bulunamadı')
-EOF
+# Mevcut domaini kontrol et
+current_domain = os.environ.get('CURRENT_DOMAIN', 'https://trgoals1423.xyz/')
+domain_number = int(os.environ.get('DOMAIN_NUMBER', 0)) if os.environ.get('DOMAIN_NUMBER') else 0
 
-        # Python scriptini çalıştır
-        python3 check_domain.py "$CURRENT_DOMAIN" "$DOMAIN_NUMBER"
+print(f"Mevcut domain: {current_domain}")
+print(f"Domain numarası: {domain_number}")
+
+if check_domain(current_domain):
+    print(f'Mevcut domain çalışıyor: {current_domain}')
+    
+    # Channel.html kontrolü yap ve baseUrl'i çıkar
+    base_url = check_channel_html(current_domain)
+    if base_url:
+        # Base URL'i dosyaya yaz
+        with open('guncel_baseurl.txt', 'w') as f:
+            f.write(f'guncel_baseurl={base_url}')
+        print(f'Base URL güncellendi: {base_url}')
+    else:
+        print('Base URL bulunamadı')
+else:
+    print('Mevcut domain çalışmıyor, yeni domain aranıyor...')
+    
+    found = False
+    max_attempts = 50  # Maksimum deneme sayısı
+    
+    for attempt in range(max_attempts):
+        # Domain numarasını artır
+        domain_number += 1
+        new_domain = f'https://trgoals{domain_number}.xyz/'
+        
+        print(f'Denenen domain {attempt + 1}/{max_attempts}: {new_domain}')
+        
+        if check_domain(new_domain):
+            print(f'Çalışan domain bulundu: {new_domain}')
+            
+            # Yeni domaini dosyaya yaz
+            with open('domain.txt', 'w') as f:
+                f.write(f'guncel_domain={new_domain}')
+            
+            # Channel.html kontrolü yap ve baseUrl'i çıkar
+            base_url = check_channel_html(new_domain)
+            if base_url:
+                # Base URL'i dosyaya yaz
+                with open('guncel_baseurl.txt', 'w') as f:
+                    f.write(f'guncel_baseurl={base_url}')
+                print(f'Base URL bulundu ve kaydedildi: {base_url}')
+            else:
+                print('Yeni domain için base URL bulunamadı')
+            
+            found = True
+            break
+    
+    if not found:
+        print(f'{max_attempts} denemede çalışan domain bulunamadı')
+PYSCRIPT
 
     - name: Commit and push if changes
       run: |
