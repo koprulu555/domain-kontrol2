@@ -41,12 +41,11 @@ jobs:
         DOMAIN_NUMBER=$(echo $CURRENT_DOMAIN | grep -o '[0-9]\+')
         echo "Başlangıç domain numarası: $DOMAIN_NUMBER"
 
-        # Python scriptini ayrı bir dosyaya yaz
-        cat > check_domain.py << 'EOF'
+        # Akıllı domain ve base URL kontrolü için Python scripti
+        python3 << 'PYTHON_SCRIPT'
 import requests
 import os
 import re
-import sys
 
 # Gerçekçi bir User-Agent başlığı tanımla
 headers = {
@@ -106,7 +105,7 @@ def check_domain(domain_number):
                             print(f'✅ Proxy üzerinden channel.html erişilebilir')
                             return test_domain, channel_url, proxy_response.text
                         else:
-                            print(f'⚠ Proxy ile de erişilemedi: {proxy_response.status_code}')
+                            print(f'⚠ Proxy ile de erişilemedi')
                             return test_domain, channel_url, None
                     except Exception as e2:
                         print(f'⚠ Proxy hatası: {e2}')
@@ -176,36 +175,27 @@ def update_files(domain, base_url):
         print('🗑 guncel_baseurl.txt silindi (base URL bulunamadı)')
 
 # Ana işlem
-if __name__ == '__main__':
-    # Domain numarasını argüman olarak al veya varsayılanı kullan
-    if len(sys.argv) > 1:
-        domain_number = sys.argv[1]
-    else:
-        domain_number = '1423'
-        
-    print(f"Başlangıç domain numarası: {domain_number}")
-    
-    found_domain, channel_url, html_content = check_domain(domain_number)
-    
-    if found_domain:
-        base_url = None
-        if html_content:
-            base_url = extract_base_url(html_content)
-        
-        update_files(found_domain, base_url)
-        
-        # İleride kullanılmak üzere channel URL'sini de kaydet
-        if channel_url:
-            print(f'🔗 Channel URL: {channel_url}')
-    else:
-        print('❌ Çalışan domain bulunamadı')
-EOF
+domain_number = '$DOMAIN_NUMBER'
+if not domain_number or domain_number == '$DOMAIN_NUMBER':
+    domain_number = '1423'  # Varsayılan başlangıç numarası
 
-        # Python scriptini çalıştır
-        python3 check_domain.py "$DOMAIN_NUMBER"
-        
-        # Temizlik
-        rm -f check_domain.py
+print(f"Başlangıç domain numarası: {domain_number}")
+
+found_domain, channel_url, html_content = check_domain(domain_number)
+
+if found_domain:
+    base_url = None
+    if html_content:
+        base_url = extract_base_url(html_content)
+    
+    update_files(found_domain, base_url)
+    
+    # İleride kullanılmak üzere channel URL'sini de kaydet
+    if channel_url:
+        print(f'🔗 Channel URL: {channel_url}')
+else:
+    print('❌ Çalışan domain bulunamadı')
+PYTHON_SCRIPT
         
     - name: Commit changes
       run: |
