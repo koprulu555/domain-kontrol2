@@ -1,0 +1,36 @@
+name: 'BaseURL Güncelleyici'
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  update-baseurl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🗂️ Repository'yi Çek
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Python Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Kütüphaneleri Yükle
+        run: pip install requests
+
+      - name: 🎯 BaseURL Scriptini Çalıştır
+        run: python .github/scripts/fetch_baseurl.py
+
+      - name: 📝 Değişiklikleri Kaydet
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add guncel_baseurl.txt
+          git diff --quiet && echo "Değişiklik yok" || (git commit -m "🤖 BaseURL güncellendi [skip ci]" && git push)
