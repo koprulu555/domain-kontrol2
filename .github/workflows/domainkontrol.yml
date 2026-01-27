@@ -1,0 +1,170 @@
+name: "🔍 Domain ve BaseURL Güncelle"
+on:
+  # Manuel çalıştırma için tetikleyici
+  workflow_dispatch:
+  # Otomatik çalışma için zamanlayıcı (30 dakikada bir)
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🗂️ Repoyu Ana Dalından Çek
+        uses: actions/checkout@v4
+        with:
+          # HEMEN DİKKAT: Bu satır çok önemli.
+          # `main` yerine repo'nun varsayılan dal adını yaz.
+          # Genellikle `main` veya `master` olur.
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Python Kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 📦 Gerekli Kütüphaneyi Yükle
+        run: pip install requests
+
+      - name: 🧠 Akıllı Kontrol ve Güncelleme
+        run: |
+          # ---------- 1. MEVCUT DOMAİN DOSYASINI OKU ----------
+          if [ -f "domain.txt" ]; then
+            # Eski usul grep ile satırı bulup '=' ile ayır
+            CURRENT_DOMAIN=$(grep '^guncel_domain=' domain.txt | cut -d'=' -f2-)
+            echo "📂 Dosyadan okunan domain: $CURRENT_DOMAIN"
+          else
+            CURRENT_DOMAIN="https://trgoals1423.xyz/"
+            echo "⚠️ domain.txt yok, varsayılan kullanılıyor: $CURRENT_DOMAIN"
+          fi
+
+          # ---------- 2. DOMAİN NUMARASINI ÇIKART ----------
+          # Sayıyı güvenli bir şekilde al
+          DOMAIN_NUMBER=$(echo "$CURRENT_DOMAIN" | grep -Eo '[0-9]+' | head -1)
+          echo "🔢 Mevcut Domain Numarası: ${DOMAIN_NUMBER:-1423}"
+
+          # ---------- 3. PREFORMANCE DEĞİŞKENLERİ ----------
+          export CURRENT_DOMAIN
+          export DOMAIN_NUMBER
+
+          # ---------- 4. ANA PYTHON KODU ----------
+          python3 << 'EOF'
+import requests
+import re
+import os
+import sys
+
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+def is_domain_alive(url):
+    """Domain'in erişilebilir olup olmadığını kontrol et."""
+    try:
+        r = requests.get(url, headers=headers, timeout=7, allow_redirects=True)
+        return r.status_code == 200
+    except:
+        return False
+
+def fetch_with_proxy(url):
+    """Önce direkt dene, olmazsa proxy ile dene."""
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        return r.text
+    except:
+        proxy_url = f"https://api.codetabs.com/v1/proxy/?quest={url}"
+        try:
+            r = requests.get(proxy_url, headers=headers, timeout=15)
+            return r.text
+        except Exception as e:
+            print(f"❌ Proxy de başarısız: {e}")
+            return None
+
+def extract_base_url(html):
+    """HTML'den baseUrl'i SENİN istediğin regex ile çıkar."""
+    # Pattern 1: SENİN gösterdiğin tam yapı
+    pattern1 = r"CONFIG\s*=\s*{[^}]*baseUrl\s*:\s*['\"](https?://[^'\"]+)['\"]"
+    # Pattern 2: Yedek, sbs ile biten URL
+    pattern2 = r"baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs)['\"]"
+
+    match = re.search(pattern1, html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        match = re.search(pattern2, html, re.IGNORECASE)
+    return match.group(1) if match else None
+
+# --- BAŞLANGIÇ ---
+print("🚀 İşlem başlatılıyor...")
+current_domain = os.environ.get('CURRENT_DOMAIN', '').rstrip('/')
+domain_num = int(os.environ.get('DOMAIN_NUMBER', 1423))
+
+# --- A. MEVCUT DOMAİN KONTROLÜ ---
+print(f"\n🔎 Mevcut domain kontrol ediliyor: {current_domain}")
+if is_domain_alive(current_domain):
+    print("✅ Mevcut domain çalışıyor.")
+    target_domain = current_domain
+else:
+    # --- B. YENİ DOMAİN BULMA ---
+    print("🔄 Mevcut domain çalışmıyor, yeni aranıyor...")
+    found = False
+    for i in range(1, 51):  # Maksimum 50 deneme
+        test_num = domain_num + i
+        test_domain = f"https://trgoals{test_num}.xyz/"
+        print(f"   Deneme {i}/50: {test_domain}", end="")
+        if is_domain_alive(test_domain):
+            print(" -> ✅ BULUNDU!")
+            target_domain = test_domain
+            found = True
+            # HEMEN domain.txt'ye YAZ
+            with open('domain.txt', 'w') as f:
+                f.write(f'guncel_domain={target_domain}')
+            print(f"   📝 domain.txt güncellendi.")
+            break
+        else:
+            print(" -> ❌ Çalışmıyor")
+    if not found:
+        print("❌ 50 denemede çalışan domain bulunamadı. İşlem durduruldu.")
+        sys.exit(1)
+
+# --- C. channel.html'DEN BASEURL ÇEKME ---
+channel_url = f"{target_domain.rstrip('/')}/channel.html"
+print(f"\n🌐 channel.html isteniyor: {channel_url}")
+html = fetch_with_proxy(channel_url)
+
+if not html:
+    print("❌ channel.html alınamadı. baseURL bulunamadı.")
+    sys.exit(1)
+
+base_url = extract_base_url(html)
+if base_url:
+    print(f"🎯 BaseURL bulundu: {base_url}")
+    with open('guncel_baseurl.txt', 'w') as f:
+        f.write(f'guncel_baseurl={base_url}')
+    print("💾 guncel_baseurl.txt dosyasına yazıldı.")
+else:
+    print("⚠️  HTML'de baseUrl bulunamadı.")
+
+print("\n✨ İşlem tamamlandı.")
+EOF
+
+      - name: 📝 Değişiklikleri Kontrol Et ve Kaydet
+        if: always()
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions Bot"
+          
+          # Hangi dosyalar değişti?
+          echo "📊 Değişen dosyalar:"
+          git status --porcelain
+          
+          # Değişiklik varsa commit et ve push yap
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "💾 Değişiklikler kaydediliyor..."
+            git add domain.txt guncel_baseurl.txt 2>/dev/null || true
+            git commit -m "🤖 Otomatik güncelleme: Domain ve BaseURL"
+            git push
+            echo "✅ Değişiklikler ana dala gönderildi."
+          else
+            echo "ℹ️  Değişiklik yok, commit atılmadı."
+          fi
