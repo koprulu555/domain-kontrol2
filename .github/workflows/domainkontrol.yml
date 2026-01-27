@@ -42,16 +42,16 @@ jobs:
         echo "Başlangıç domain numarası: $DOMAIN_NUMBER"
 
         # Akıllı domain ve base URL kontrolü için Python scripti
-        python3 << 'PYTHON_SCRIPT'
+        python3 -c "
 import requests
 import os
 import re
-
+        
 # Gerçekçi bir User-Agent başlığı tanımla
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 }
-
+        
 def check_domain(domain_number):
     '''Domain numarasını artırarak çalışan domaini bul'''
     base_domain = 'trgoals'
@@ -125,7 +125,7 @@ def extract_base_url(html_content):
             return None
             
         # Regex pattern'i: CONFIG={baseUrl:' ile başlayan, https ile başlayan ve .sbs/ ile biten URL
-        pattern = r"CONFIG\s*=\s*\{baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]"
+        pattern = r\"CONFIG\s*=\s*{baseUrl\s*:\s*['\\\"](https?://[^'\\\"]+\.sbs/)['\\\"]\"
         match = re.search(pattern, html_content)
         
         if match:
@@ -134,7 +134,7 @@ def extract_base_url(html_content):
             return base_url
         
         # Alternatif pattern: const CONFIG={baseUrl:' ile başlayan
-        pattern2 = r"const\s+CONFIG\s*=\s*\{baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]"
+        pattern2 = r\"const\s+CONFIG\s*=\s*{baseUrl\s*:\s*['\\\"](https?://[^'\\\"]+\.sbs/)['\\\"]\"
         match2 = re.search(pattern2, html_content)
         
         if match2:
@@ -143,7 +143,7 @@ def extract_base_url(html_content):
             return base_url
         
         # Daha genel pattern deneyelim
-        pattern3 = r"baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs/)['\"]"
+        pattern3 = r\"baseUrl\s*:\s*['\\\"](https?://[^'\\\"]+\.sbs/)['\\\"]\"
         match3 = re.search(pattern3, html_content)
         
         if match3:
@@ -177,9 +177,9 @@ def update_files(domain, base_url):
 # Ana işlem
 domain_number = '$DOMAIN_NUMBER'
 if not domain_number or domain_number == '$DOMAIN_NUMBER':
-    domain_number = '1423'  # Varsayılan başlangıç numarası
+    domain_number = '1423'
 
-print(f"Başlangıç domain numarası: {domain_number}")
+print(f\"Başlangıç domain numarası: {domain_number}\")
 
 found_domain, channel_url, html_content = check_domain(domain_number)
 
@@ -195,7 +195,7 @@ if found_domain:
         print(f'🔗 Channel URL: {channel_url}')
 else:
     print('❌ Çalışan domain bulunamadı')
-PYTHON_SCRIPT
+        "
         
     - name: Commit changes
       run: |
