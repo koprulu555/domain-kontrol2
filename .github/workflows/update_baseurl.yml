@@ -15,6 +15,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # BU SATIR ÇOK ÖNEMLİ: Repoyu tam olarak çek
+          fetch-depth: 0
 
       - name: 🐍 Python Kur
         uses: actions/setup-python@v5
@@ -25,23 +27,47 @@ jobs:
         run: pip install requests
 
       - name: 🎯 BaseURL Çek
-        run: python3 fetch_baseurl.py
+        run: |
+          echo "=== Python Script Çalıştırılıyor ==="
+          python3 fetch_baseurl.py
+          
+          # Dosyanın oluşup oluşmadığını kontrol et
+          echo "=== Dosya Kontrolü ==="
+          ls -la guncel_baseurl.txt 2>/dev/null || echo "DOSYA BULUNAMADI!"
+          cat guncel_baseurl.txt 2>/dev/null || echo "DOSYA OKUNAMADI!"
 
       - name: 📝 Değişiklikleri Kaydet
         if: always()
         run: |
+          echo "=== Git İşlemleri ==="
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
+          # Hangi dosyaların değiştiğini göster
+          git status
+          
+          # guncel_baseurl.txt dosyasını kontrol et
           if [ -f "guncel_baseurl.txt" ]; then
-            if git diff --quiet guncel_baseurl.txt; then
-              echo "ℹ️  Değişiklik yok"
-            else
-              git add guncel_baseurl.txt
-              git commit -m "🔗 BaseURL güncellendi"
+            echo "✅ guncel_baseurl.txt DOSYASI VAR"
+            echo "📄 İçerik:"
+            cat guncel_baseurl.txt
+            
+            # Dosyayı ekle
+            git add guncel_baseurl.txt
+            
+            # Değişikliği commit et
+            if ! git diff --cached --quiet; then
+              git commit -m "🔗 BaseURL güncellendi: $(date '+%Y-%m-%d %H:%M')"
+              echo "✅ Commit yapıldı"
+              
+              # Push et
               git push
-              echo "✅ Değişiklikler kaydedildi"
+              echo "✅ Push edildi"
+            else
+              echo "ℹ️  Değişiklik yok, commit atılmadı"
             fi
           else
-            echo "⚠️  guncel_baseurl.txt oluşturulamadı"
+            echo "❌ HATA: guncel_baseurl.txt DOSYASI OLUŞMAMIŞ!"
+            echo "Mevcut dosyalar:"
+            ls -la
           fi
