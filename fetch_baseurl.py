@@ -66,31 +66,42 @@ def main():
     print("\n🔍 BaseURL aranıyor...")
     baseurl = None
     
-    # Regex 1: Tam senin gösterdiğin
+    # Regex 1: Tam senin gösterdiğin - <script>(function(){const CONFIG={baseUrl:'https://...
     pattern1 = r"<script>\(function\(\)\{const CONFIG=\{baseUrl:'(https?://[^']+\.sbs)/'"
     match1 = re.search(pattern1, html, re.IGNORECASE)
     if match1:
         baseurl = match1.group(1).rstrip('/')
         print(f"✅ Regex 1 ile bulundu: {baseurl}")
     
-    # Regex 2: Genel CONFIG
+    # Regex 2: "const" kelimesinden SONRA gelen ilk https://...sbs URL'si
     if not baseurl:
-        pattern2 = r"CONFIG\s*=\s*\{[^}]*baseUrl\s*:\s*['\"](https?://[^'\"]+\.sbs)"
-        match2 = re.search(pattern2, html, re.IGNORECASE | re.DOTALL)
-        if match2:
-            baseurl = match2.group(1).rstrip('/')
-            print(f"✅ Regex 2 ile bulundu: {baseurl}")
+        # const'tan sonraki ilk https://...sbs'yi ara
+        const_index = html.lower().find('const')
+        if const_index != -1:
+            # const'tan sonraki kısmı al
+            after_const = html[const_index:]
+            pattern2 = r'https?://[^\s<>"\']+\.sbs'
+            match2 = re.search(pattern2, after_const, re.IGNORECASE)
+            if match2:
+                baseurl = match2.group(0).rstrip('/')
+                print(f"✅ Regex 2 ile bulundu (const'tan sonra): {baseurl}")
     
-    # Regex 3: Herhangi .sbs URL
+    # Regex 3: Tüm HTML sayfasında başı https ile başlayan, .sbs ile biten İLK URL
     if not baseurl:
-        pattern3 = r'(https?://[^\s<>"\']+\.sbs)'
-        match3 = re.search(pattern3, html, re.IGNORECASE)
-        if match3:
-            baseurl = match3.group(1).rstrip('/')
-            print(f"✅ Regex 3 ile bulundu: {baseurl}")
+        pattern3 = r'https?://[^\s<>"\']+\.sbs'
+        # Tüm eşleşmeleri bul
+        matches3 = re.findall(pattern3, html, re.IGNORECASE)
+        if matches3:
+            # İlk eşleşmeyi al
+            baseurl = matches3[0].rstrip('/')
+            print(f"✅ Regex 3 ile bulundu (tüm HTML'de ilk .sbs URL): {baseurl}")
     
     if not baseurl:
         print("❌ BaseURL bulunamadı")
+        print("   HTML'de .sbs içeren URL'ler:")
+        all_sbs = re.findall(r'https?://[^\s<>"\']*\.sbs[^\s<>"\']*', html, re.IGNORECASE)
+        for url in all_sbs[:5]:  # İlk 5'ini göster
+            print(f"   - {url}")
         sys.exit(1)
     
     # 5. DOSYAYA YAZ
