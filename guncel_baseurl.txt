@@ -1,1 +1,1 @@
-guncel_baseurl=https://obv.d72577a9dd0ec28.sbs
+guncel_baseurl=https://dje.d72577a9dd0ec29.sbs
