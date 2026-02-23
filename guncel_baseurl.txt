@@ -1,1 +1,1 @@
-guncel_baseurl=https://dje.d72577a9dd0ec29.sbs
+guncel_baseurl=https://8pi.d72577a9dd0ec30.sbs
